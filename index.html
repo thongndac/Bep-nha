@@ -16,15 +16,23 @@
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
   <script type="text/babel">
-    const { useState, useEffect, useMemo } = React;
+    const { useState, useEffect, useMemo, useRef } = React;
 
-    // ---------- LocalStorage helpers ----------
+    // === Presentational components (defined OUTSIDE App so input doesn't remount) ===
+    const Tag = React.memo(function Tag({ children }) {
+      return <span className="px-2 py-0.5 rounded-full text-xs border mr-1 mb-1 inline-block">{children}</span>;
+    });
+    const Card = React.memo(function Card({ children }) {
+      return <div className="bg-white rounded-2xl shadow p-4 border border-gray-100">{children}</div>;
+    });
+
+    // === LocalStorage helpers ===
     const load = (k, d) => {
       try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; }
     };
     const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
 
-    // ---------- Data ----------
+    // === Recipes data ===
     const defaultRecipes = [
       // MẶN
       { name: "Thịt kho trứng", time: 40, category: "mặn",
@@ -98,10 +106,10 @@
       "rau bất kỳ": [{ alt: "bông cải xanh", score: 0.6 }, { alt: "rau muống", score: 0.6 }]
     };
 
+    // Gia vị bỏ qua khi chấm điểm
     const IGNORED = new Set(["muối","đường","nước mắm","nước tương","tiêu","dầu ăn","hành tím","tỏi","hạt nêm","bột ngọt","giấm","bột năng","dầu hào"]);
 
     // Helpers
-    const isDiscrete = (unit) => ["quả","cái","miếng","cây","bó"].includes((unit||"").toLowerCase());
     const stepForUnit = (unit) => {
       const u = (unit||"").toLowerCase();
       if (u === "g" || u === "ml") return 100;
@@ -111,7 +119,7 @@
     const fmtQty = (v) => (Math.round(v*100)/100).toString();
 
     function App() {
-      // ---------- State ----------
+      // State
       const [items, setItems] = useState(load("fridge_items_v1", []));
       const [recipes] = useState(load("fridge_recipes_v1", defaultRecipes));
       const [form, setForm] = useState({ name: "", qty: "", unit: "g", location: "Tủ lạnh", exp: "" });
@@ -122,7 +130,8 @@
       const [searchPantry, setSearchPantry] = useState("");
       const [lastCook, setLastCook] = useState(null);
       const [editIdx, setEditIdx] = useState(null);
-      const [editForm, setEditForm] = useState({ name: "", qty: "", unit: "g", location: "Tủ lạnh", exp: "" });
+      const [editForm, setEditForm] = useState({});
+      const nameRef = useRef(null);
 
       useEffect(() => save("fridge_items_v1", items), [items]);
 
@@ -271,8 +280,13 @@
       };
       const closeEdit = () => setEditIdx(null);
 
-      const Tag = ({ children }) => (<span className="px-2 py-0.5 rounded-full text-xs border mr-1 mb-1 inline-block">{children}</span>);
-      const Card = ({ children }) => (<div className="bg-white rounded-2xl shadow p-4 border border-gray-100">{children}</div>);
+      const addItem = () => {
+        const name = (form.name || "").trim();
+        if (!name) return;
+        setItems(prev => [...prev, { ...form, name }]);
+        setForm({ name: "", qty: "", unit: "g", location: "Tủ lạnh", exp: "" });
+        if (nameRef.current) nameRef.current.focus();
+      };
 
       return (
         <div className="min-h-screen">
@@ -296,30 +310,25 @@
             </header>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
-              {/* Cột 1: Nhập kho */}
+              {/* Cột 1 */}
               <div className="lg:col-span-1 space-y-4">
                 <Card>
                   <h2 className="font-semibold mb-3">Thêm nguyên liệu</h2>
                   <div className="grid grid-cols-2 gap-2">
-                    <input className="col-span-2 w-full px-3 py-2 bg-white rounded-xl border border-slate-200 text-sm" placeholder="Tên (vd: thịt ba chỉ)" value={form.name}
-                      onChange={e => setForm({ ...form, name: e.target.value })} />
+                    <input ref={nameRef} autoComplete="off" spellCheck={false}
+                      className="col-span-2 w-full px-3 py-2 bg-white rounded-xl border border-slate-200 text-sm"
+                      placeholder="Tên (vd: thịt ba chỉ)" value={form.name}
+                      onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
                     <input className="w-full px-3 py-2 bg-white rounded-xl border border-slate-200 text-sm" type="number" placeholder="Số lượng" value={form.qty}
-                      onChange={e => setForm({ ...form, qty: e.target.value })} />
-                    <select className="w-full px-3 py-2 bg-white rounded-xl border border-slate-200 text-sm" value={form.unit} onChange={e => setForm({ ...form, unit: e.target.value })}>
+                      onChange={e => setForm(f => ({ ...f, qty: e.target.value }))} />
+                    <select className="w-full px-3 py-2 bg-white rounded-xl border border-slate-200 text-sm" value={form.unit} onChange={e => setForm(f => ({ ...f, unit: e.target.value }))}>
                       {['g', 'kg', 'ml', 'l', 'quả', 'cây', 'bó', 'miếng', 'cái'].map(u => <option key={u}>{u}</option>)}
                     </select>
-                    <select className="w-full px-3 py-2 bg-white rounded-xl border border-slate-200 text-sm" value={form.location} onChange={e => setForm({ ...form, location: e.target.value })}>
+                    <select className="w-full px-3 py-2 bg-white rounded-xl border border-slate-200 text-sm" value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))}>
                       {['Tủ lạnh', 'Ngăn đá', 'Tủ khô'].map(l => <option key={l}>{l}</option>)}
                     </select>
-                    <input className="w-full px-3 py-2 bg-white rounded-xl border border-slate-200 text-sm" type="date" value={form.exp} onChange={e => setForm({ ...form, exp: e.target.value })} />
-                    <button
-                      onClick={() => {
-                        const name = form.name.trim();
-                        if (!name) return;
-                        setItems(prev => [...prev, { ...form, name }]);
-                        setForm({ name: "", qty: "", unit: "g", location: "Tủ lạnh", exp: "" });
-                      }}
-                      className="col-span-2 px-3 py-2 rounded-xl bg-slate-900 text-white text-sm shadow hover:opacity-90">+ Thêm</button>
+                    <input className="w-full px-3 py-2 bg-white rounded-xl border border-slate-200 text-sm" type="date" value={form.exp} onChange={e => setForm(f => ({ ...f, exp: e.target.value }))} />
+                    <button onClick={addItem} className="col-span-2 px-3 py-2 rounded-xl bg-slate-900 text-white text-sm shadow hover:opacity-90">+ Thêm</button>
                   </div>
                 </Card>
 
@@ -353,7 +362,7 @@
                 </Card>
               </div>
 
-              {/* Cột 2-3: Gợi ý */}
+              {/* Cột 2-3 */}
               <div className="lg:col-span-2 space-y-4">
                 <Card>
                   <div className="flex flex-col md:flex-row md:items-end gap-3">
