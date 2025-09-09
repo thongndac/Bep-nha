@@ -322,7 +322,7 @@
                     <input className="w-full px-3 py-2 bg-white rounded-xl border border-slate-200 text-sm" type="number" placeholder="Số lượng" value={form.qty}
                       onChange={e => setForm(f => ({ ...f, qty: e.target.value }))} />
                     <select className="w-full px-3 py-2 bg-white rounded-xl border border-slate-200 text-sm" value={form.unit} onChange={e => setForm(f => ({ ...f, unit: e.target.value }))}>
-                      {['g', 'kg', 'ml', 'l', 'quả', 'cây', 'bó', 'miếng', 'cái'].map(u => <option key={u}>{u}</option>)}
+                      {['g', 'kg', 'ml', 'l', 'quả', 'cây', 'bó', 'miếng', 'cái', 'con'].map(u => <option key={u}>{u}</option>)}
                     </select>
                     <select className="w-full px-3 py-2 bg-white rounded-xl border border-slate-200 text-sm" value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))}>
                       {['Tủ lạnh', 'Ngăn đá', 'Tủ khô'].map(l => <option key={l}>{l}</option>)}
@@ -505,7 +505,7 @@
                     <input className="col-span-2 w-full px-3 py-2 bg-white rounded-xl border border-slate-200 text-sm" placeholder="Tên" value={editForm.name||""} onChange={e => setEditForm({ ...editForm, name: e.target.value })} />
                     <input className="w-full px-3 py-2 bg-white rounded-xl border border-slate-200 text-sm" type="number" placeholder="Số lượng" value={editForm.qty||""} onChange={e => setEditForm({ ...editForm, qty: e.target.value })} />
                     <select className="w-full px-3 py-2 bg-white rounded-xl border border-slate-200 text-sm" value={editForm.unit||"g"} onChange={e => setEditForm({ ...editForm, unit: e.target.value })}>
-                      {['g', 'kg', 'ml', 'l', 'quả', 'cây', 'bó', 'miếng', 'cái'].map(u => <option key={u}>{u}</option>)}
+                      {['g', 'kg', 'ml', 'l', 'quả', 'cây', 'bó', 'miếng', 'cái', 'con'].map(u => <option key={u}>{u}</option>)}
                     </select>
                     <select className="w-full px-3 py-2 bg-white rounded-xl border border-slate-200 text-sm" value={editForm.location||"Tủ lạnh"} onChange={e => setEditForm({ ...editForm, location: e.target.value })}>
                       {['Tủ lạnh', 'Ngăn đá', 'Tủ khô'].map(l => <option key={l}>{l}</option>)}
