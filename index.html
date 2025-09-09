@@ -1,0 +1,602 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Bếp Nhà – Gợi ý món từ tủ lạnh</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 text-slate-800">
+  <div id="root"></div>
+
+  <!-- React 18 UMD + ReactDOM -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <!-- Babel for JSX in browser -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <script type="text/babel">
+    const { useState, useEffect, useMemo, useRef } = React;
+
+    // === Presentational components (defined OUTSIDE App so input doesn't remount) ===
+    const Tag = React.memo(function Tag({ children }) {
+      return <span className="px-2 py-0.5 rounded-full text-xs border mr-1 mb-1 inline-block">{children}</span>;
+    });
+    const Card = React.memo(function Card({ children }) {
+      return <div className="bg-white rounded-2xl shadow p-4 border border-gray-100">{children}</div>;
+    });
+
+    // === LocalStorage helpers ===
+    const load = (k, d) => {
+      try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; }
+    };
+    const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
+
+    // === Recipes data ===
+    const defaultRecipes = [
+      // MẶN
+      { name: "Thịt kho trứng", time: 40, category: "mặn",
+        required: ["thịt ba chỉ", "trứng gà", "nước mắm", "đường", "tỏi"],
+        optional: ["nước dừa", "tiêu", "hành tím"], equipment: ["nồi"], tags: ["bữa cơm nhà", "kid-friendly"] },
+      { name: "Thịt ba chỉ rang cháy cạnh", time: 20, category: "mặn",
+        required: ["thịt ba chỉ", "nước mắm", "đường", "tỏi"], optional: ["tiêu", "hành lá"], equipment: ["chảo"], tags: ["nhanh"] },
+      { name: "Gà kho gừng", time: 35, category: "mặn",
+        required: ["thịt gà", "gừng", "nước mắm", "đường", "tỏi"], optional: ["ớt", "tiêu"], equipment: ["nồi"], tags: ["ấm người"] },
+      { name: "Cá nục kho cà", time: 35, category: "mặn",
+        required: ["cá nục", "cà chua", "nước mắm", "đường", "hành tím"], optional: ["tiêu"], equipment: ["nồi"], tags: ["đưa cơm"] },
+      { name: "Cá lóc kho tộ", time: 45, category: "mặn",
+        required: ["cá lóc", "nước mắm", "đường", "tiêu", "tỏi"], optional: ["ớt", "hành lá"], equipment: ["nồi đất/nồi"], tags: ["truyền thống"] },
+      { name: "Trứng chiên thịt băm", time: 15, category: "mặn",
+        required: ["trứng gà", "thịt heo bằm", "nước mắm"], optional: ["hành lá", "tiêu"], equipment: ["chảo"], tags: ["nhanh", "kid-friendly"] },
+      { name: "Bò xào hành tây", time: 15, category: "mặn",
+        required: ["thịt bò", "hành tây", "tỏi", "nước tương"], optional: ["tiêu", "dầu hào"], equipment: ["chảo"], tags: ["nhanh"] },
+      { name: "Đậu hũ sốt cà", time: 18, category: "mặn",
+        required: ["đậu hũ", "cà chua", "tỏi", "nước mắm"], optional: ["hành lá", "đường"], equipment: ["chảo"], tags: ["ăn chay được"] },
+      { name: "Sườn xào chua ngọt", time: 35, category: "mặn",
+        required: ["sườn heo", "tỏi", "giấm", "đường", "nước mắm"], optional: ["ớt chuông", "hành tây"], equipment: ["chảo"], tags: ["đưa cơm"] },
+      { name: "Thịt heo luộc chấm mắm gừng", time: 25, category: "mặn",
+        required: ["thịt heo", "gừng", "nước mắm", "đường"], optional: ["tỏi", "ớt"], equipment: ["nồi"], tags: ["ít dầu mỡ"] },
+      // RAU/XÀO
+      { name: "Rau muống xào tỏi", time: 8, category: "rau",
+        required: ["rau muống", "tỏi", "dầu ăn", "muối"], optional: ["nước tương"], equipment: ["chảo"], tags: ["nhanh", "ít dầu mỡ"] },
+      { name: "Đậu bắp xào tỏi", time: 8, category: "rau",
+        required: ["đậu bắp", "tỏi", "dầu ăn", "muối"], optional: ["tiêu"], equipment: ["chảo"], tags: ["nhanh"] },
+      { name: "Cải thìa xào nấm", time: 10, category: "rau",
+        required: ["cải thìa", "nấm bào ngư", "tỏi", "nước tương"], optional: ["dầu hào"], equipment: ["chảo"], tags: ["nhanh"] },
+      { name: "Bí đỏ xào tỏi", time: 12, category: "rau",
+        required: ["bí đỏ", "tỏi", "dầu ăn", "muối"], optional: ["hành lá"], equipment: ["chảo"], tags: ["ngọt bùi"] },
+      { name: "Su su xào trứng", time: 12, category: "rau",
+        required: ["su su", "trứng gà", "tỏi", "muối"], optional: ["tiêu"], equipment: ["chảo"], tags: ["dễ ăn"] },
+      { name: "Bông cải xanh xào tỏi", time: 10, category: "rau",
+        required: ["bông cải xanh", "tỏi", "muối", "dầu ăn"], optional: ["hạt nêm"], equipment: ["chảo"], tags: ["ít dầu mỡ"] },
+      { name: "Rau luộc chấm mắm", time: 10, category: "rau",
+        required: ["rau bất kỳ", "muối"], optional: ["nước mắm", "tỏi"], equipment: ["nồi"], tags: ["siêu nhanh", "ít dầu mỡ"] },
+      // CANH
+      { name: "Canh cà chua trứng", time: 12, category: "canh",
+        required: ["cà chua", "trứng gà", "hành lá", "muối"], optional: ["nước mắm", "tiêu"], equipment: ["nồi"], tags: ["nhanh"] },
+      { name: "Canh bí đao nấu tôm", time: 15, category: "canh",
+        required: ["bí đao", "tôm", "hành lá", "muối"], optional: ["nước mắm"], equipment: ["nồi"], tags: ["thanh mát"] },
+      { name: "Canh cải ngọt nấu thịt bằm", time: 15, category: "canh",
+        required: ["cải ngọt", "thịt heo bằm", "hành tím", "muối"], optional: ["nước mắm", "tiêu"], equipment: ["nồi"], tags: ["dễ ăn"] },
+      { name: "Canh chua cá", time: 25, category: "canh",
+        required: ["cá", "cà chua", "thơm", "me bột", "hành lá"], optional: ["đậu bắp", "bạc hà"], equipment: ["nồi"], tags: ["đặc trưng Nam"] },
+      { name: "Canh mồng tơi nấu tôm khô", time: 12, category: "canh",
+        required: ["mồng tơi", "tôm khô", "muối"], optional: ["mướp"], equipment: ["nồi"], tags: ["nhanh"] },
+      { name: "Canh rau dền nấu tôm", time: 12, category: "canh",
+        required: ["rau dền", "tôm", "muối"], optional: ["hành lá"], equipment: ["nồi"], tags: ["màu đẹp"] },
+      { name: "Canh bầu nấu tôm", time: 12, category: "canh",
+        required: ["bầu", "tôm", "muối", "hành lá"], optional: ["nước mắm"], equipment: ["nồi"], tags: ["ngọt nước"] },
+      // KHÁC
+      { name: "Cháo thịt bằm", time: 40, category: "khác",
+        required: ["gạo", "thịt heo bằm", "hành lá", "muối"], optional: ["trứng bắc thảo"], equipment: ["nồi"], tags: ["dễ ăn", "kid-friendly"] },
+      { name: "Mì xào bò", time: 15, category: "khác",
+        required: ["mì", "thịt bò", "rau cải", "tỏi", "nước tương"], optional: ["dầu hào"], equipment: ["chảo"], tags: ["đổi vị"] },
+      { name: "Bún xào rau củ", time: 15, category: "khác",
+        required: ["bún khô", "cà rốt", "bắp cải", "nấm", "tỏi", "nước tương"], optional: ["dầu hào"], equipment: ["chảo"], tags: ["ăn chay được"] }
+    ];
+
+    const substitutions = {
+      "hành lá": [{ alt: "hẹ", score: 0.7 }],
+      "cà chua": [{ alt: "me bột", score: 0.6 }],
+      "nấm rơm": [{ alt: "nấm bào ngư", score: 0.8 }],
+      "thịt ba chỉ": [{ alt: "thịt vai heo", score: 0.8 }],
+      "thịt bò": [{ alt: "thịt heo", score: 0.5 }],
+      "cá": [{ alt: "cá lóc", score: 0.7 }, { alt: "cá nục", score: 0.6 }],
+      "tôm": [{ alt: "tôm khô", score: 0.6 }],
+      "rau bất kỳ": [{ alt: "bông cải xanh", score: 0.6 }, { alt: "rau muống", score: 0.6 }]
+    };
+
+    // Gia vị bỏ qua khi chấm điểm
+    const IGNORED = new Set(["muối","đường","nước mắm","nước tương","tiêu","dầu ăn","hành tím","tỏi","hạt nêm","bột ngọt","giấm","bột năng","dầu hào"]);
+
+    // Helpers
+    const stepForUnit = (unit) => {
+      const u = (unit||"").toLowerCase();
+      if (u === "g" || u === "ml") return 100;
+      if (u === "kg" || u === "l") return 0.1;
+      return 1; // quả/cái/miếng...
+    };
+    const fmtQty = (v) => (Math.round(v*100)/100).toString();
+
+    function App() {
+      // State
+      const [items, setItems] = useState(load("fridge_items_v1", []));
+      const [recipes, setRecipes] = useState(load("fridge_recipes_v1", defaultRecipes));
+      const [form, setForm] = useState({ name: "", qty: "", unit: "g", location: "Tủ lạnh", exp: "" });
+      const [timeFilter, setTimeFilter] = useState(30);
+      const [suggestions, setSuggestions] = useState([]);
+      const [combo, setCombo] = useState(null);
+      const [showPantry, setShowPantry] = useState(false);
+      const [searchPantry, setSearchPantry] = useState("");
+      
+      const [showLibrary, setShowLibrary] = useState(false);
+      const [libSearch, setLibSearch] = useState("");
+      const freshRecipe = () => ({ name: "", time: 15, category: "mặn", required: [], optional: [], equipment: [], tags: [] });
+      const [libForm, setLibForm] = useState(freshRecipe());
+      const [libEditIdx, setLibEditIdx] = useState(null);
+      const [rText, setRText] = useState("");
+      const [oText, setOText] = useState("");
+      const [eText, setEText] = useState("");
+      const [tText, setTText] = useState("");
+const [lastCook, setLastCook] = useState(null);
+      const [editIdx, setEditIdx] = useState(null);
+      const [editForm, setEditForm] = useState({});
+      const nameRef = useRef(null);
+
+      useEffect(() => save("fridge_items_v1", items), [items]);
+      useEffect(() => save("fridge_recipes_v1", recipes), [recipes]);
+
+      const invNames = useMemo(() => items.map(i => i.name.trim().toLowerCase()), [items]);
+
+      const hasIng = (name) => {
+        const n = name.trim().toLowerCase();
+        if (IGNORED.has(n)) return 1;
+        if (invNames.includes(n)) return 1;
+        const subs = substitutions[n];
+        if (subs) {
+          for (const s of subs) {
+            const alt = s.alt.trim().toLowerCase();
+            if (invNames.includes(alt)) return Math.min(1, s.score);
+          }
+        }
+        return 0;
+      };
+
+      const expSoonBonus = (recipe) => {
+        const now = new Date();
+        const soon = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 2);
+        let bonus = 0;
+        for (const r of recipe.required) {
+          const idx = items.findIndex(i => i.name.trim().toLowerCase() === r.trim().toLowerCase());
+          if (idx >= 0 && items[idx].exp) {
+            const d = new Date(items[idx].exp);
+            if (d <= soon) bonus += 1;
+          }
+        }
+        return bonus;
+      };
+
+      const scoreRecipe = (recipe) => {
+        const req = recipe.required;
+        const haveScores = req.map(hasIng);
+        const softHave = haveScores.reduce((a, b) => a + b, 0);
+        const fitRatio = softHave / req.length;
+        const missing = req.filter((r, i) => haveScores[i] === 0 && !IGNORED.has(r.toLowerCase()));
+        const bonus = expSoonBonus(recipe);
+        let score = 50 * fitRatio - 20 * missing.length + 5 * bonus;
+        if (recipe.time <= timeFilter) score += 10;
+        if (recipe.category === "rau" || recipe.category === "canh") score += 2;
+        return { score, fit: Math.round(fitRatio * 100), missing };
+      };
+
+      const makeSuggestions = () => {
+        const out = recipes
+          .filter(r => r.time <= timeFilter || timeFilter === 60)
+          .map(r => ({ recipe: r, meta: scoreRecipe(r) }))
+          .sort((a, b) => b.meta.score - a.meta.score)
+          .slice(0, 12);
+        setSuggestions(out);
+        setCombo(null);
+      };
+
+      const makeCombo = () => {
+        const ranked = recipes.map(r => ({ r, m: scoreRecipe(r) })).sort((a, b) => b.m.score - a.m.score);
+        const pick = (cat) => ranked.find(x => x.r.category === cat && (x.r.time <= timeFilter || timeFilter === 60));
+        const m = pick("mặn");
+        const rau = pick("rau");
+        const canh = pick("canh");
+        if (!m || !rau || !canh) { setCombo(null); setSuggestions([]); return; }
+        const comboItems = [m, rau, canh];
+        const approxTime = Math.max(m.r.time, rau.r.time, canh.r.time);
+        setCombo({ items: comboItems, time: approxTime });
+        setSuggestions([]);
+      };
+
+      const cookRecipe = (recipe) => {
+        const usedIdx = new Set();
+        const removed = [];
+        const want = recipe.required.filter(n => !IGNORED.has(n.toLowerCase()));
+        const nameIndex = (target, list) => list.findIndex((it, idx) => !usedIdx.has(idx) && it.name.trim().toLowerCase() === target.trim().toLowerCase());
+        let newItems = [...items];
+        for (const need of want) {
+          let idx = nameIndex(need, newItems);
+          if (idx < 0 && substitutions[need.toLowerCase()]) {
+            for (const alt of substitutions[need.toLowerCase()]) {
+              idx = nameIndex(alt.alt, newItems);
+              if (idx >= 0) break;
+            }
+          }
+          if (idx >= 0) { usedIdx.add(idx); removed.push(newItems[idx]); }
+        }
+        if (usedIdx.size === 0) { setLastCook({ recipe: recipe.name, removed: [] }); return; }
+        newItems = newItems.filter((_, idx) => !usedIdx.has(idx));
+        setItems(newItems);
+        setLastCook({ recipe: recipe.name, removed });
+      };
+
+      const undoLastCook = () => {
+        if (!lastCook) return;
+        setItems(prev => [...prev, ...lastCook.removed]);
+        setLastCook(null);
+      };
+
+      const cookCombo = () => {
+        if (!combo?.items?.length) return;
+        let curItems = [...items];
+        let removedAll = [];
+        const nameIndex = (target, list, used) => list.findIndex((it, idx) => !used.has(idx) && it.name.trim().toLowerCase() === target.trim().toLowerCase());
+        for (const it of combo.items) {
+          const r = it.r;
+          const used = new Set();
+          const want = r.required.filter(n => !IGNORED.has(n.toLowerCase()));
+          let newCur = [...curItems];
+          for (const need of want) {
+            let idx = nameIndex(need, newCur, used);
+            if (idx < 0 && substitutions[need.toLowerCase()]) {
+              for (const alt of substitutions[need.toLowerCase()]) {
+                idx = nameIndex(alt.alt, newCur, used);
+                if (idx >= 0) break;
+              }
+            }
+            if (idx >= 0) { used.add(idx); removedAll.push(newCur[idx]); }
+          }
+          newCur = newCur.filter((_, idx) => !used.has(idx));
+          curItems = newCur;
+        }
+        setItems(curItems);
+        setLastCook({ recipe: 'Combo 3 món', removed: removedAll });
+      };
+
+      const adjustQty = (idx, delta) => {
+        setItems(prev => {
+          const list = [...prev];
+          const it = { ...list[idx] };
+          const step = stepForUnit(it.unit);
+          const cur = parseFloat(it.qty || "0") || 0;
+          const next = Math.max(0, cur + delta * step);
+          it.qty = fmtQty(next);
+          list[idx] = it;
+          return list;
+        });
+      };
+
+      const openEdit = (idx) => { setEditIdx(idx); setEditForm({ ...items[idx] }); };
+      const saveEdit = () => {
+        setItems(prev => {
+          const list = [...prev];
+          list[editIdx] = { ...editForm, name: (editForm.name || '').trim() };
+          return list;
+        });
+        setEditIdx(null);
+      };
+      const closeEdit = () => setEditIdx(null);
+
+      
+      const normArr = (a) => Array.isArray(a) ? a : [];
+      const openAddRecipe = () => { setLibEditIdx(-1); setLibForm(freshRecipe()); };
+      const openEditRecipe = (idx) => {
+        const r = recipes[idx] || freshRecipe();
+        setLibEditIdx(idx);
+        setLibForm({
+          name: r.name || "",
+          time: r.time || 15,
+          category: r.category || "mặn",
+          required: normArr(r.required),
+          optional: normArr(r.optional),
+          equipment: normArr(r.equipment),
+          tags: normArr(r.tags)
+        });
+      };
+      const addTokenTo = (field, val) => {
+        const v = (val || "").trim();
+        if (!v) return;
+        setLibForm(f => {
+          const arr = Array.isArray(f[field]) ? [...f[field]] : [];
+          if (!arr.includes(v)) arr.push(v);
+          return { ...f, [field]: arr };
+        });
+      };
+      const removeTokenAt = (field, i) => {
+        setLibForm(f => {
+          const arr = Array.isArray(f[field]) ? [...f[field]] : [];
+          arr.splice(i, 1);
+          return { ...f, [field]: arr };
+        });
+      };
+      const saveRecipeToLib = () => {
+        const payload = {
+          name: (libForm.name || "").trim(),
+          time: Number(libForm.time) || 15,
+          category: libForm.category || "mặn",
+          required: normArr(libForm.required).map(s => s.trim()).filter(Boolean),
+          optional: normArr(libForm.optional).map(s => s.trim()).filter(Boolean),
+          equipment: normArr(libForm.equipment).map(s => s.trim()).filter(Boolean),
+          tags: normArr(libForm.tags).map(s => s.trim()).filter(Boolean),
+        };
+        if (!payload.name) return;
+        if (libEditIdx == -1) {
+          setRecipes(prev => [...prev, payload]);
+        } else if (libEditIdx !== null) {
+          setRecipes(prev => prev.map((r, i) => i == libEditIdx ? payload : r));
+        }
+        setLibEditIdx(null);
+        setLibForm(freshRecipe());
+        setRText(""); setOText(""); setEText(""); setTText("");
+      };
+      const deleteRecipeAt = (idx) => {
+        if (!confirm('Xoá món này khỏi thư viện?')) return;
+        setRecipes(prev => prev.filter((_, i) => i !== idx));
+        if (libEditIdx === idx) { setLibEditIdx(null); setLibForm(freshRecipe()); }
+      };
+const addItem = () => {
+        const name = (form.name || "").trim();
+        if (!name) return;
+        setItems(prev => [...prev, { ...form, name }]);
+        setForm({ name: "", qty: "", unit: "g", location: "Tủ lạnh", exp: "" });
+        if (nameRef.current) nameRef.current.focus();
+      };
+
+      return (
+        <div className="min-h-screen">
+          <div className="max-w-6xl mx-auto p-4 md:p-6">
+            <header className="mb-4 md:mb-6">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h1 className="text-2xl md:text-3xl font-bold">Bếp Nhà – Gợi ý món từ tủ lạnh</h1>
+                  <p className="text-sm text-slate-600 mt-1">Nhập đồ đang có → Bấm gợi ý. Lưu offline, không cần mạng.</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button className="px-3 py-2 rounded-xl border text-sm" onClick={() => setShowLibrary(true)}>Thư viện món</button>
+                  <button className="px-3 py-2 rounded-xl border text-sm" onClick={() => setShowPantry(true)}>Kho tủ lạnh</button>
+                </div>
+              </div>
+              {lastCook && (
+                <div className="mt-3 bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm rounded-xl p-3">
+                  Đã trừ nguyên liệu cho: <span className="font-medium">{lastCook.recipe}</span>.
+                  <button className="ml-2 underline" onClick={undoLastCook}>Hoàn tác</button>
+                </div>
+              )}
+            </header>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
+              {/* Cột 1 */}
+              <div className="lg:col-span-1 space-y-4">
+                <Card>
+                  <h2 className="font-semibold mb-3">Thêm nguyên liệu</h2>
+                  <div className="grid grid-cols-2 gap-2">
+                    <input ref={nameRef} autoComplete="off" spellCheck={false}
+                      className="col-span-2 w-full px-3 py-2 bg-white rounded-xl border border-slate-200 text-sm"
+                      placeholder="Tên (vd: thịt ba chỉ)" value={form.name}
+                      onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+                    <input className="w-full px-3 py-2 bg-white rounded-xl border border-slate-200 text-sm" type="number" placeholder="Số lượng" value={form.qty}
+                      onChange={e => setForm(f => ({ ...f, qty: e.target.value }))} />
+                    <select className="w-full px-3 py-2 bg-white rounded-xl border border-slate-200 text-sm" value={form.unit} onChange={e => setForm(f => ({ ...f, unit: e.target.value }))}>
+                      {['g', 'kg', 'ml', 'l', 'quả', 'cây', 'bó', 'miếng', 'cái'].map(u => <option key={u}>{u}</option>)}
+                    </select>
+                    <select className="w-full px-3 py-2 bg-white rounded-xl border border-slate-200 text-sm" value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))}>
+                      {['Tủ lạnh', 'Ngăn đá', 'Tủ khô'].map(l => <option key={l}>{l}</option>)}
+                    </select>
+                    <input className="w-full px-3 py-2 bg-white rounded-xl border border-slate-200 text-sm" type="date" value={form.exp} onChange={e => setForm(f => ({ ...f, exp: e.target.value }))} />
+                    <button onClick={addItem} className="col-span-2 px-3 py-2 rounded-xl bg-slate-900 text-white text-sm shadow hover:opacity-90">+ Thêm</button>
+                  </div>
+                </Card>
+
+                <Card>
+                  <h2 className="font-semibold mb-3">Tồn kho hiện có</h2>
+                  {items.length === 0 ? (
+                    <p className="text-sm text-slate-500">Chưa có gì. Hãy thêm vài món: trứng, thịt, cà chua…</p>
+                  ) : (
+                    <ul className="space-y-2 max-h-72 overflow-auto pr-1">
+                      {items.map((it, idx) => (
+                        <li key={idx} className="flex items-center justify-between bg-slate-50 rounded-xl border p-2 gap-2">
+                          <div>
+                            <div className="font-medium">{it.name}</div>
+                            <div className="text-xs text-slate-500">{it.qty || '-'} {it.unit} • {it.location}{it.exp ? ` • HSD: ${it.exp}` : ''}</div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-1">
+                              <button className="px-2 py-1 rounded-lg border text-xs" onClick={() => adjustQty(idx, -1)}>-</button>
+                              <button className="px-2 py-1 rounded-lg border text-xs" onClick={() => adjustQty(idx, +1)}>+</button>
+                            </div>
+                            <button className="text-blue-600 text-sm" onClick={() => openEdit(idx)}>Sửa</button>
+                            <button className="text-red-600 text-sm" onClick={() => setItems(items.filter((_, i) => i !== idx))}>Xoá</button>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {items.length > 0 && (
+                    <button className="mt-3 px-3 py-2 rounded-xl bg-slate-900 text-white text-sm shadow hover:opacity-90" onClick={() => setItems([])}>Xoá hết</button>
+                  )}
+                </Card>
+              </div>
+
+              {/* Cột 2-3 */}
+              <div className="lg:col-span-2 space-y-4">
+                <Card>
+                  <div className="flex flex-col md:flex-row md:items-end gap-3">
+                    <div className="flex-1">
+                      <h2 className="font-semibold mb-1">Gợi ý món</h2>
+                      <div className="text-xs text-slate-500">Chọn giới hạn thời gian nấu</div>
+                      <div className="mt-2 flex gap-2 flex-wrap">
+                        {[15, 30, 45, 60].map(t => (
+                          <button key={t} onClick={() => setTimeFilter(t)} className={`px-3 py-1.5 rounded-full border ${timeFilter === t ? 'bg-blue-50 border-blue-300' : 'bg-white'}`}>
+                            ≤ {t} phút
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button className="px-3 py-2 rounded-xl bg-slate-900 text-white text-sm shadow hover:opacity-90" onClick={makeSuggestions}>Gợi ý nhanh</button>
+                      <button className="px-3 py-2 rounded-xl bg-slate-900 text-white text-sm shadow hover:opacity-90" onClick={makeCombo}>Combo 3 món</button>
+                    </div>
+                  </div>
+                </Card>
+
+                {combo && (
+                  <Card>
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-semibold">Combo bữa cơm (1 mặn + 1 rau + 1 canh) • ~{combo.time} phút</h3>
+                      <button className="text-sm text-slate-500" onClick={() => setCombo(null)}>Ẩn</button>
+                    </div>
+                    <div className="grid md:grid-cols-3 gap-3 mt-3">
+                      {combo.items.map(({ r, m }, i) => (
+                        <div key={i} className="border rounded-xl p-3 bg-white/60">
+                          <div className="font-medium">{r.name}</div>
+                          <div className="text-xs text-slate-500">{r.category} • {r.time} phút • Phù hợp {m.fit}%</div>
+                          <div className="mt-2 flex flex-wrap">
+                            {r.tags?.map((t, idx) => <Tag key={idx}>{t}</Tag>)}
+                          </div>
+                          {m.missing.length > 0 && (
+                            <div className="text-xs text-amber-600 mt-2">Thiếu: {m.missing.join(', ')}</div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                    <div className="mt-3">
+                      <button className="px-3 py-2 rounded-xl bg-slate-900 text-white text-sm shadow hover:opacity-90" onClick={cookCombo}>
+                        Nấu combo này (trừ nguyên liệu 3 món)
+                      </button>
+                    </div>
+                  </Card>
+                )}
+
+                {suggestions.length > 0 && (
+                  <Card>
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-semibold">Đề xuất hàng đầu</h3>
+                      <button className="text-sm text-slate-500" onClick={() => setSuggestions([])}>Ẩn</button>
+                    </div>
+                    <div className="grid md:grid-cols-2 gap-3 mt-3">
+                      {suggestions.map(({ recipe, meta }, idx) => (
+                        <div key={idx} className="border rounded-xl p-3 bg-white/60">
+                          <div className="flex items-center justify-between">
+                            <div className="font-medium">{recipe.name}</div>
+                            <div className="text-xs">{recipe.time}′</div>
+                          </div>
+                          <div className="text-xs text-slate-500">Phù hợp {meta.fit}% • {recipe.category}</div>
+                          <div className="mt-2 flex flex-wrap">
+                            {recipe.tags?.map((t, i) => <Tag key={i}>{t}</Tag>)}
+                          </div>
+                          {meta.missing.length > 0 ? (
+                            <div>
+                              <div className="text-xs text-amber-600 mt-2">Thiếu: {meta.missing.join(', ')}</div>
+                              <button className="mt-2 px-3 py-1.5 rounded-xl border text-sm" onClick={() => cookRecipe(recipe)}>Nấu món này</button>
+                            </div>
+                          ) : (
+                            <div>
+                              <div className="text-xs text-emerald-600 mt-2">Đủ nguyên liệu rồi!</div>
+                              <button className="mt-2 px-3 py-1.5 rounded-xl border text-sm" onClick={() => cookRecipe(recipe)}>Nấu món này</button>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </Card>
+                )}
+              </div>
+            </div>
+
+            {showPantry && (
+              <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+                <div className="bg-white w-full max-w-2xl max-h-[80vh] overflow-auto rounded-2xl shadow p-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-semibold">Kho tủ lạnh</h3>
+                    <button className="text-sm" onClick={() => setShowPantry(false)}>Đóng</button>
+                  </div>
+                  <div className="mt-3 flex gap-2">
+                    <input className="w-full px-3 py-2 bg-white rounded-xl border border-slate-200 text-sm" placeholder="Tìm theo tên..." value={searchPantry} onChange={e => setSearchPantry(e.target.value)} />
+                    {items.length > 0 && (
+                      <button className="px-3 py-2 rounded-xl border text-sm" onClick={() => setItems([])}>Xoá hết</button>
+                    )}
+                  </div>
+                  <div className="mt-3">
+                    {(() => {
+                      const filtered = items
+                        .slice()
+                        .sort((a, b) => (a.exp || '9999-99-99').localeCompare(b.exp || '9999-99-99'))
+                        .filter(i => i.name.toLowerCase().includes(searchPantry.toLowerCase()));
+                      if (filtered.length === 0) return <p className="text-sm text-slate-500">Chưa có gì trong kho.</p>;
+                      return (
+                        <ul className="divide-y">
+                          {filtered.map((it, idx) => (
+                            <li key={idx} className="py-2 flex items-center justify-between">
+                              <div>
+                                <div className="font-medium">{it.name}</div>
+                                <div className="text-xs text-slate-500">{it.qty || '-'} {it.unit} • {it.location}{it.exp ? ` • HSD: ${it.exp}` : ''}</div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-1">
+                                  <button className="px-2 py-1 rounded-lg border text-xs" onClick={() => adjustQty(idx, -1)}>-</button>
+                                  <button className="px-2 py-1 rounded-lg border text-xs" onClick={() => adjustQty(idx, +1)}>+</button>
+                                </div>
+                                <button className="text-blue-600 text-sm" onClick={() => openEdit(idx)}>Sửa</button>
+                                <button className="text-red-600 text-sm" onClick={() => setItems(items.filter((_, i) => i !== idx))}>Xoá</button>
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
+                      );
+                    })()}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {editIdx !== null && (
+              <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+                <div className="bg-white w-full max-w-md rounded-2xl shadow p-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-semibold">Sửa nguyên liệu</h3>
+                    <button className="text-sm" onClick={closeEdit}>Đóng</button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 mt-3">
+                    <input className="col-span-2 w-full px-3 py-2 bg-white rounded-xl border border-slate-200 text-sm" placeholder="Tên" value={editForm.name||""} onChange={e => setEditForm({ ...editForm, name: e.target.value })} />
+                    <input className="w-full px-3 py-2 bg-white rounded-xl border border-slate-200 text-sm" type="number" placeholder="Số lượng" value={editForm.qty||""} onChange={e => setEditForm({ ...editForm, qty: e.target.value })} />
+                    <select className="w-full px-3 py-2 bg-white rounded-xl border border-slate-200 text-sm" value={editForm.unit||"g"} onChange={e => setEditForm({ ...editForm, unit: e.target.value })}>
+                      {['g', 'kg', 'ml', 'l', 'quả', 'cây', 'bó', 'miếng', 'cái'].map(u => <option key={u}>{u}</option>)}
+                    </select>
+                    <select className="w-full px-3 py-2 bg-white rounded-xl border border-slate-200 text-sm" value={editForm.location||"Tủ lạnh"} onChange={e => setEditForm({ ...editForm, location: e.target.value })}>
+                      {['Tủ lạnh', 'Ngăn đá', 'Tủ khô'].map(l => <option key={l}>{l}</option>)}
+                    </select>
+                    <input className="w-full px-3 py-2 bg-white rounded-xl border border-slate-200 text-sm col-span-2" type="date" value={editForm.exp||""} onChange={e => setEditForm({ ...editForm, exp: e.target.value })} />
+                    <div className="col-span-2 flex justify-end gap-2 mt-2">
+                      <button className="px-3 py-2 rounded-xl border text-sm" onClick={closeEdit}>Hủy</button>
+                      <button className="px-3 py-2 rounded-xl bg-slate-900 text-white text-sm" onClick={saveEdit}>Lưu</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <footer className="text-center text-xs text-slate-500 mt-8">MVP · Lưu dữ liệu tại trình duyệt (LocalStorage)</footer>
+          </div>
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
